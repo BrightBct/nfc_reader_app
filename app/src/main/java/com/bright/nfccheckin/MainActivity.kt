@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
             if (student == null) {
                 uiState = uiState.copy(
                     lastScan = scan,
-                    status = "Unknown card.",
+                    status = "Unregistered card. Enter student details to link this UID.",
                     studentIdInput = "",
                     studentNameInput = "",
                 )
@@ -367,7 +367,7 @@ private fun StatusPanel(state: AppUiState) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Scans: ${state.checkIns.size} recent shown • Students: ${state.students.size}",
+                text = "Recent check-ins: ${state.checkIns.size} • Students: ${state.students.size}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -432,6 +432,12 @@ private fun ScanPanel(scan: NfcScan, onClearScan: () -> Unit) {
                 scan.ndefRecords.forEach { record ->
                     Text(text = record, style = MaterialTheme.typography.bodyMedium)
                 }
+            } else {
+                Text(
+                    text = "No readable NDEF records.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -590,7 +596,7 @@ object NfcInspector {
         return NfcScan(
             timestamp = nowText(),
             cardUid = tag.id?.toHex().orEmpty(),
-            technologies = tag.techList.map { it.substringAfterLast('.') }.sorted(),
+            technologies = tag.techList.map { it.substringAfterLast('.') }.distinct().sorted(),
             ndefRecords = ndefRecords,
         )
     }

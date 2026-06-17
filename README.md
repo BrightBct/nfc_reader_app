@@ -46,9 +46,17 @@ On the phone, Android may ask you to allow installing apps from your browser or 
 
 1. Install the app on your NFC phone.
 2. Open the app and tap a student ID card.
-3. If the card is unknown, enter the student ID and name.
+3. If the card is unregistered, enter the student ID and name.
 4. Tap **Save Student**.
 5. Tap the card again to check in.
+
+## What "Unregistered Card" Means
+
+If the app shows technologies such as `IsoDep`, `MifareClassic`, `NdefFormatable`, or `NfcA`, the phone is detecting the card. Many university cards do not expose the student ID or name as readable NDEF data, so the app uses the visible UID instead.
+
+For this kind of card, register it once by entering the student ID and name. After that, tapping the same card should check the student in automatically.
+
+Do not format university ID cards, even if Android reports `NdefFormatable`.
 
 ## Data Files
 
