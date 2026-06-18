@@ -7,6 +7,7 @@ The first version is intentionally local-first:
 - Scan an NFC card with an Android phone.
 - Record visible card metadata: UID, NFC technologies, NDEF text or URI data when available.
 - Register a visible card UID to a student name and student ID.
+- Import a private class roster CSV and choose section A-E before scanning.
 - Check students in by tapping their card again.
 - Export `students.csv`, `checkins.csv`, and `scans.csv` through Android sharing.
 
@@ -44,11 +45,29 @@ On the phone, Android may ask you to allow installing apps from your browser or 
 
 ## First Test
 
-1. Install the app on your NFC phone.
-2. Open the app and tap a student ID card.
-3. If the card is unregistered, enter the student ID and name.
-4. Tap **Save Student**.
-5. Tap the card again to check in.
+1. Copy the private roster CSV to your phone or Google Drive.
+2. Install and open the app on your NFC phone.
+3. Tap **Import CSV** and select either the full roster or one section CSV.
+4. Choose section A-E.
+5. Tap a student ID card.
+6. Search for and select the student once to link that card UID.
+7. Future taps check that student in automatically.
+
+The import recognizes the columns `Student ID`, `Name (EN)` or `Name (TH)`,
+`Nickname (EN)` or `Nickname (TH)`, and `Section`.
+
+## Split the Roster by Section
+
+The original roster and generated section files stay inside the ignored `data/`
+folder and are not committed to GitHub.
+
+```bash
+python3 scripts/split_students_by_section.py "data/SM31301-CheckIn - Sheet1.csv"
+```
+
+This creates `data/sections/students-section-A.csv` through
+`students-section-E.csv`. The app can also import the original full CSV and
+filter it with the section buttons, so splitting is optional.
 
 ## What "Unregistered Card" Means
 
@@ -63,6 +82,7 @@ Do not format university ID cards, even if Android reports `NdefFormatable`.
 The app keeps private local files inside Android app storage:
 
 - `students.json`
+- `roster.json`
 - `checkins.csv`
 - `scans.csv`
 

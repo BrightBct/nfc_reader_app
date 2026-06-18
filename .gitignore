@@ -9,3 +9,7 @@ captures/
 *.apk
 *.aab
 *.keystore
+
+# Private student rosters. Keep only the folder placeholder in Git.
+data/*
+!data/.gitkeep

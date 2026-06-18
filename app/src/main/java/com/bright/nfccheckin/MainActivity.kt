@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.InputStream
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
@@ -64,16 +66,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var store: LocalStore
     private var nfcAdapter: NfcAdapter? = null
     private var uiState by mutableStateOf(AppUiState())
+    private val rosterPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(::importRoster)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         store = LocalStore(this)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        val savedRoster = store.readRoster()
 
         uiState = uiState.copy(
             nfcAvailable = nfcAdapter != null,
             students = store.readStudents(),
+            roster = savedRoster,
+            selectedSection = savedRoster.firstOrNull()?.section.orEmpty(),
             checkIns = store.readCheckIns().takeLast(20).reversed(),
             status = when {
                 nfcAdapter == null -> "NFC is not available on this device."
@@ -89,6 +97,20 @@ class MainActivity : ComponentActivity() {
                     onStudentIdChange = { uiState = uiState.copy(studentIdInput = it) },
                     onStudentNameChange = { uiState = uiState.copy(studentNameInput = it) },
                     onSaveStudent = ::saveStudentAndCheckIn,
+                    onImportRoster = {
+                        rosterPicker.launch(
+                            arrayOf("text/csv", "text/comma-separated-values", "text/plain"),
+                        )
+                    },
+                    onSectionSelected = { section ->
+                        uiState = uiState.copy(
+                            selectedSection = section,
+                            rosterSearch = "",
+                            status = "Section $section selected. Ready for card.",
+                        )
+                    },
+                    onRosterSearchChange = { uiState = uiState.copy(rosterSearch = it) },
+                    onRosterStudentSelected = ::linkRosterStudentAndCheckIn,
                     onClearScan = { uiState = uiState.copy(lastScan = null, status = "Ready for card.") },
                     onExport = ::exportCsvFiles,
                 )
@@ -156,9 +178,24 @@ class MainActivity : ComponentActivity() {
             if (student == null) {
                 uiState = uiState.copy(
                     lastScan = scan,
-                    status = "Unregistered card. Enter student details to link this UID.",
+                    status = if (uiState.roster.any { it.section == uiState.selectedSection }) {
+                        "Unregistered card. Select the student from section ${uiState.selectedSection}."
+                    } else {
+                        "Unregistered card. Enter student details to link this UID."
+                    },
                     studentIdInput = "",
                     studentNameInput = "",
+                )
+                return@runOnUiThread
+            }
+
+            if (uiState.selectedSection.isNotBlank() &&
+                student.section.isNotBlank() &&
+                student.section != uiState.selectedSection
+            ) {
+                uiState = uiState.copy(
+                    lastScan = scan,
+                    status = "${student.name} belongs to section ${student.section}. Select that section first.",
                 )
                 return@runOnUiThread
             }
@@ -197,6 +234,7 @@ class MainActivity : ComponentActivity() {
             cardUid = cardUid,
             studentId = studentId,
             name = studentName,
+            section = uiState.selectedSection,
             createdAt = nowText(),
         )
         val updatedStudents = (uiState.students.filterNot { it.cardUid == cardUid } + student)
@@ -212,6 +250,67 @@ class MainActivity : ComponentActivity() {
             studentNameInput = "",
             status = checkInResult,
         )
+    }
+
+    private fun linkRosterStudentAndCheckIn(rosterStudent: RosterStudent) {
+        val cardUid = uiState.lastScan?.cardUid.orEmpty()
+        if (cardUid.isBlank()) {
+            uiState = uiState.copy(status = "Scan a card before selecting a student.")
+            return
+        }
+
+        val existingCard = uiState.students.firstOrNull {
+            it.studentId == rosterStudent.studentId && it.cardUid != cardUid
+        }
+        if (existingCard != null) {
+            uiState = uiState.copy(
+                status = "${rosterStudent.name} is already linked to another card.",
+            )
+            return
+        }
+
+        val student = Student(
+            cardUid = cardUid,
+            studentId = rosterStudent.studentId,
+            name = rosterStudent.name,
+            section = rosterStudent.section,
+            createdAt = nowText(),
+        )
+        val updatedStudents = (uiState.students.filterNot { it.cardUid == cardUid } + student)
+            .sortedWith(compareBy<Student> { it.section }.thenBy { it.studentId })
+
+        store.saveStudents(updatedStudents)
+        val checkInResult = createCheckIn(student)
+        uiState = uiState.copy(
+            students = updatedStudents,
+            checkIns = store.readCheckIns().takeLast(20).reversed(),
+            rosterSearch = "",
+            status = checkInResult,
+        )
+    }
+
+    private fun importRoster(uri: Uri) {
+        val result = runCatching {
+            contentResolver.openInputStream(uri)?.use(RosterCsv::read)
+                ?: error("Could not open the selected file.")
+        }
+
+        result.onSuccess { roster ->
+            store.saveRoster(roster)
+            val sections = roster.map { it.section }.distinct().sorted()
+            val selected = uiState.selectedSection.takeIf { it in sections }
+                ?: sections.firstOrNull().orEmpty()
+            uiState = uiState.copy(
+                roster = roster,
+                selectedSection = selected,
+                rosterSearch = "",
+                status = "Imported ${roster.size} students. Section $selected is selected.",
+            )
+        }.onFailure { error ->
+            uiState = uiState.copy(
+                status = "Roster import failed: ${error.message ?: "invalid CSV"}",
+            )
+        }
     }
 
     private fun createCheckIn(student: Student): String {
@@ -261,7 +360,10 @@ data class AppUiState(
     val status: String = "Starting.",
     val lastScan: NfcScan? = null,
     val students: List<Student> = emptyList(),
+    val roster: List<RosterStudent> = emptyList(),
     val checkIns: List<CheckInRecord> = emptyList(),
+    val selectedSection: String = "",
+    val rosterSearch: String = "",
     val studentIdInput: String = "",
     val studentNameInput: String = "",
 )
@@ -270,7 +372,15 @@ data class Student(
     val cardUid: String,
     val studentId: String,
     val name: String,
+    val section: String,
     val createdAt: String,
+)
+
+data class RosterStudent(
+    val studentId: String,
+    val name: String,
+    val nickname: String,
+    val section: String,
 )
 
 data class CheckInRecord(
@@ -295,6 +405,10 @@ fun AppScreen(
     onStudentIdChange: (String) -> Unit,
     onStudentNameChange: (String) -> Unit,
     onSaveStudent: () -> Unit,
+    onImportRoster: () -> Unit,
+    onSectionSelected: (String) -> Unit,
+    onRosterSearchChange: (String) -> Unit,
+    onRosterStudentSelected: (RosterStudent) -> Unit,
     onClearScan: () -> Unit,
     onExport: () -> Unit,
 ) {
@@ -326,6 +440,13 @@ fun AppScreen(
         ) {
             StatusPanel(state)
 
+            RosterPanel(
+                roster = state.roster,
+                selectedSection = state.selectedSection,
+                onImportRoster = onImportRoster,
+                onSectionSelected = onSectionSelected,
+            )
+
             state.lastScan?.let { scan ->
                 ScanPanel(scan = scan, onClearScan = onClearScan)
             }
@@ -333,18 +454,38 @@ fun AppScreen(
             if (state.lastScan?.cardUid?.isNotBlank() == true &&
                 state.students.none { it.cardUid == state.lastScan.cardUid }
             ) {
-                RegisterPanel(
-                    studentId = state.studentIdInput,
-                    studentName = state.studentNameInput,
-                    onStudentIdChange = onStudentIdChange,
-                    onStudentNameChange = onStudentNameChange,
-                    onSaveStudent = onSaveStudent,
-                )
+                val sectionRoster = state.roster.filter { it.section == state.selectedSection }
+                if (sectionRoster.isNotEmpty()) {
+                    RosterRegistrationPanel(
+                        students = sectionRoster,
+                        linkedStudentIds = state.students.map { it.studentId }.toSet(),
+                        search = state.rosterSearch,
+                        onSearchChange = onRosterSearchChange,
+                        onStudentSelected = onRosterStudentSelected,
+                    )
+                } else {
+                    RegisterPanel(
+                        studentId = state.studentIdInput,
+                        studentName = state.studentNameInput,
+                        onStudentIdChange = onStudentIdChange,
+                        onStudentNameChange = onStudentNameChange,
+                        onSaveStudent = onSaveStudent,
+                    )
+                }
             }
 
             SummaryPanel(
-                studentCount = state.students.size,
-                checkIns = state.checkIns,
+                rosterCount = state.roster.count { it.section == state.selectedSection },
+                linkedCount = state.students.count {
+                    state.selectedSection.isBlank() || it.section == state.selectedSection
+                },
+                checkIns = state.checkIns.filter { checkIn ->
+                    state.selectedSection.isBlank() ||
+                        state.students.any {
+                            it.studentId == checkIn.studentId &&
+                                it.section == state.selectedSection
+                        }
+                },
                 onExport = onExport,
             )
         }
@@ -367,10 +508,144 @@ private fun StatusPanel(state: AppUiState) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Recent check-ins: ${state.checkIns.size} • Students: ${state.students.size}",
+                text = "Section: ${state.selectedSection.ifBlank { "Not selected" }} • Recent check-ins: ${state.checkIns.size}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RosterPanel(
+    roster: List<RosterStudent>,
+    selectedSection: String,
+    onImportRoster: () -> Unit,
+    onSectionSelected: (String) -> Unit,
+) {
+    val sections = roster.map { it.section }.distinct().sorted()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(
+                        text = "Class Roster",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (roster.isEmpty()) {
+                            "No roster imported"
+                        } else {
+                            "${roster.size} students imported"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(
+                    onClick = onImportRoster,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(if (roster.isEmpty()) "Import CSV" else "Replace CSV")
+                }
+            }
+            if (sections.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    sections.forEach { section ->
+                        FilterChip(
+                            selected = section == selectedSection,
+                            onClick = { onSectionSelected(section) },
+                            label = { Text("Section $section") },
+                            shape = RoundedCornerShape(8.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RosterRegistrationPanel(
+    students: List<RosterStudent>,
+    linkedStudentIds: Set<String>,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    onStudentSelected: (RosterStudent) -> Unit,
+) {
+    val query = search.trim()
+    val matches = students.filter { student ->
+        query.isBlank() ||
+            student.studentId.contains(query, ignoreCase = true) ||
+            student.name.contains(query, ignoreCase = true) ||
+            student.nickname.contains(query, ignoreCase = true)
+    }.take(8)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E6)),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Link Card to Student",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF5A4212),
+            )
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = search,
+                onValueChange = onSearchChange,
+                label = { Text("Search ID, name, or nickname") },
+                singleLine = true,
+            )
+            matches.forEach { student ->
+                val linked = student.studentId in linkedStudentIds
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !linked,
+                    onClick = { onStudentSelected(student) },
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(
+                            text = student.name,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = buildString {
+                                append(student.studentId)
+                                if (student.nickname.isNotBlank()) append(" • ${student.nickname}")
+                                if (linked) append(" • Already linked")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+            if (matches.isEmpty()) {
+                Text(
+                    text = "No student found in this section.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -493,7 +768,8 @@ private fun RegisterPanel(
 
 @Composable
 private fun SummaryPanel(
-    studentCount: Int,
+    rosterCount: Int,
+    linkedCount: Int,
     checkIns: List<CheckInRecord>,
     onExport: () -> Unit,
 ) {
@@ -514,7 +790,7 @@ private fun SummaryPanel(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "$studentCount registered students",
+                        text = "$rosterCount in roster • $linkedCount linked cards",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -615,8 +891,54 @@ object NfcInspector {
     }
 }
 
+object RosterCsv {
+    fun read(input: InputStream): List<RosterStudent> {
+        val lines = input.bufferedReader(StandardCharsets.UTF_8).readLines()
+            .filter { it.isNotBlank() }
+        require(lines.isNotEmpty()) { "The CSV is empty." }
+
+        val headers = parseCsvLine(lines.first()).map { it.normalizeHeader() }
+        val studentIdIndex = headers.indexOf("student id")
+        val sectionIndex = headers.indexOf("section")
+        val nameEnIndex = headers.indexOf("name (en)")
+        val nameThIndex = headers.indexOf("name (th)")
+        val nicknameEnIndex = headers.indexOf("nickname (en)")
+        val nicknameThIndex = headers.indexOf("nickname (th)")
+
+        require(studentIdIndex >= 0) { "Missing Student ID column." }
+        require(sectionIndex >= 0) { "Missing Section column." }
+        require(nameEnIndex >= 0 || nameThIndex >= 0) {
+            "Missing Name (EN) or Name (TH) column."
+        }
+
+        return lines.drop(1).mapNotNull { line ->
+            val values = parseCsvLine(line)
+            val studentId = values.valueAt(studentIdIndex)
+            val section = values.valueAt(sectionIndex).uppercase(Locale.US)
+            if (studentId.isBlank() || section.isBlank()) {
+                null
+            } else {
+                val name = values.valueAt(nameEnIndex)
+                    .ifBlank { values.valueAt(nameThIndex) }
+                    .ifBlank { studentId }
+                val nickname = values.valueAt(nicknameEnIndex)
+                    .ifBlank { values.valueAt(nicknameThIndex) }
+                RosterStudent(
+                    studentId = studentId,
+                    name = name,
+                    nickname = nickname,
+                    section = section,
+                )
+            }
+        }.distinctBy { it.studentId }
+            .sortedWith(compareBy<RosterStudent> { it.section }.thenBy { it.studentId })
+            .also { require(it.isNotEmpty()) { "No student rows were found." } }
+    }
+}
+
 class LocalStore(private val context: Context) {
     private val studentsFile = File(context.filesDir, "students.json")
+    private val rosterFile = File(context.filesDir, "roster.json")
     private val checkInsFile = File(context.filesDir, "checkins.csv")
     private val scansFile = File(context.filesDir, "scans.csv")
 
@@ -631,6 +953,7 @@ class LocalStore(private val context: Context) {
                     cardUid = item.getString("cardUid"),
                     studentId = item.getString("studentId"),
                     name = item.getString("name"),
+                    section = item.optString("section"),
                     createdAt = item.getString("createdAt"),
                 )
             }
@@ -646,11 +969,44 @@ class LocalStore(private val context: Context) {
                     .put("cardUid", student.cardUid)
                     .put("studentId", student.studentId)
                     .put("name", student.name)
+                    .put("section", student.section)
                     .put("createdAt", student.createdAt),
             )
         }
         studentsFile.writeText(array.toString(2))
         writeStudentsCsv(students)
+    }
+
+    @Synchronized
+    fun readRoster(): List<RosterStudent> {
+        if (!rosterFile.exists()) return emptyList()
+        return runCatching {
+            val array = JSONArray(rosterFile.readText())
+            (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                RosterStudent(
+                    studentId = item.getString("studentId"),
+                    name = item.getString("name"),
+                    nickname = item.optString("nickname"),
+                    section = item.getString("section"),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    @Synchronized
+    fun saveRoster(roster: List<RosterStudent>) {
+        val array = JSONArray()
+        roster.forEach { student ->
+            array.put(
+                JSONObject()
+                    .put("studentId", student.studentId)
+                    .put("name", student.name)
+                    .put("nickname", student.nickname)
+                    .put("section", student.section),
+            )
+        }
+        rosterFile.writeText(array.toString(2))
     }
 
     @Synchronized
@@ -735,7 +1091,7 @@ class LocalStore(private val context: Context) {
     private fun writeStudentsCsv(students: List<Student>) {
         val studentsCsv = File(context.filesDir, "students.csv")
         val lines = buildList {
-            add(csvLine(listOf("card_uid", "student_id", "student_name", "created_at")))
+            add(csvLine(listOf("card_uid", "student_id", "student_name", "section", "created_at")))
             students.forEach { student ->
                 add(
                     csvLine(
@@ -743,6 +1099,7 @@ class LocalStore(private val context: Context) {
                             student.cardUid,
                             student.studentId,
                             student.name,
+                            student.section,
                             student.createdAt,
                         ),
                     ),
@@ -852,6 +1209,15 @@ private fun nowText(): String =
 
 private fun csvLine(values: List<String>): String =
     values.joinToString(",") { value -> "\"${value.replace("\"", "\"\"")}\"" }
+
+private fun String.normalizeHeader(): String =
+    removePrefix("\uFEFF")
+        .trim()
+        .lowercase(Locale.US)
+        .replace(Regex("\\s+"), " ")
+
+private fun List<String>.valueAt(index: Int): String =
+    if (index in indices) this[index].trim() else ""
 
 private fun parseCsvLine(line: String): List<String> {
     val values = mutableListOf<String>()
