@@ -98,15 +98,13 @@ class MainActivity : ComponentActivity() {
                     onStudentNameChange = { uiState = uiState.copy(studentNameInput = it) },
                     onSaveStudent = ::saveStudentAndCheckIn,
                     onImportRoster = {
-                        rosterPicker.launch(
-                            arrayOf("text/csv", "text/comma-separated-values", "text/plain"),
-                        )
+                        rosterPicker.launch(arrayOf("*/*"))
                     },
                     onSectionSelected = { section ->
                         uiState = uiState.copy(
                             selectedSection = section,
                             rosterSearch = "",
-                            status = "Section $section selected. Ready for card.",
+                            status = "Group $section selected. Ready for card.",
                         )
                     },
                     onRosterSearchChange = { uiState = uiState.copy(rosterSearch = it) },
@@ -179,9 +177,9 @@ class MainActivity : ComponentActivity() {
                 uiState = uiState.copy(
                     lastScan = scan,
                     status = if (uiState.roster.any { it.section == uiState.selectedSection }) {
-                        "Unregistered card. Select the student from section ${uiState.selectedSection}."
+                        "Unregistered card. Select a person from group ${uiState.selectedSection}."
                     } else {
-                        "Unregistered card. Enter student details to link this UID."
+                        "Unregistered card. Enter person details to link this UID."
                     },
                     studentIdInput = "",
                     studentNameInput = "",
@@ -195,7 +193,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 uiState = uiState.copy(
                     lastScan = scan,
-                    status = "${student.name} belongs to section ${student.section}. Select that section first.",
+                    status = "${student.name} belongs to group ${student.section}. Select that group first.",
                 )
                 return@runOnUiThread
             }
@@ -217,15 +215,15 @@ class MainActivity : ComponentActivity() {
 
         when {
             cardUid.isBlank() -> {
-                uiState = uiState.copy(status = "Scan a card before saving a student.")
+                uiState = uiState.copy(status = "Scan a card before saving a person.")
                 return
             }
             studentId.isBlank() -> {
-                uiState = uiState.copy(status = "Student ID is required.")
+                uiState = uiState.copy(status = "ID is required.")
                 return
             }
             studentName.isBlank() -> {
-                uiState = uiState.copy(status = "Student name is required.")
+                uiState = uiState.copy(status = "Name is required.")
                 return
             }
         }
@@ -255,7 +253,7 @@ class MainActivity : ComponentActivity() {
     private fun linkRosterStudentAndCheckIn(rosterStudent: RosterStudent) {
         val cardUid = uiState.lastScan?.cardUid.orEmpty()
         if (cardUid.isBlank()) {
-            uiState = uiState.copy(status = "Scan a card before selecting a student.")
+            uiState = uiState.copy(status = "Scan a card before selecting a person.")
             return
         }
 
@@ -264,7 +262,7 @@ class MainActivity : ComponentActivity() {
         }
         if (existingCard != null) {
             uiState = uiState.copy(
-                status = "${rosterStudent.name} is already linked to another card.",
+                status = "${rosterStudent.name} is already linked to a different card.",
             )
             return
         }
@@ -304,11 +302,11 @@ class MainActivity : ComponentActivity() {
                 roster = roster,
                 selectedSection = selected,
                 rosterSearch = "",
-                status = "Imported ${roster.size} students. Section $selected is selected.",
+                status = "Imported ${roster.size} people. Group $selected is selected.",
             )
         }.onFailure { error ->
             uiState = uiState.copy(
-                status = "Roster import failed: ${error.message ?: "invalid CSV"}",
+                status = "CSV import failed: ${error.message ?: "invalid CSV"}",
             )
         }
     }
@@ -417,7 +415,7 @@ fun AppScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "NFC Check-In Lite",
+                        text = "NFC Check-In",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -508,7 +506,7 @@ private fun StatusPanel(state: AppUiState) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Section: ${state.selectedSection.ifBlank { "Not selected" }} • Recent check-ins: ${state.checkIns.size}",
+                text = "Group: ${state.selectedSection.ifBlank { "Not selected" }} • Recent check-ins: ${state.checkIns.size}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -537,15 +535,15 @@ private fun RosterPanel(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text(
-                        text = "Class Roster",
+                        text = "People List",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = if (roster.isEmpty()) {
-                            "No roster imported"
+                            "No CSV imported"
                         } else {
-                            "${roster.size} students imported"
+                            "${roster.size} people imported"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -568,7 +566,7 @@ private fun RosterPanel(
                         FilterChip(
                             selected = section == selectedSection,
                             onClick = { onSectionSelected(section) },
-                            label = { Text("Section $section") },
+                            label = { Text(section) },
                             shape = RoundedCornerShape(8.dp),
                         )
                     }
@@ -604,7 +602,7 @@ private fun RosterRegistrationPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "Link Card to Student",
+                text = "Link Card to Person",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF5A4212),
@@ -642,7 +640,7 @@ private fun RosterRegistrationPanel(
             }
             if (matches.isEmpty()) {
                 Text(
-                    text = "No student found in this section.",
+                    text = "No matching person found in this group.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -736,7 +734,7 @@ private fun RegisterPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "Register Student",
+                text = "Register Person",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF5A4212),
@@ -745,14 +743,14 @@ private fun RegisterPanel(
                 modifier = Modifier.fillMaxWidth(),
                 value = studentId,
                 onValueChange = onStudentIdChange,
-                label = { Text("Student ID") },
+                label = { Text("ID") },
                 singleLine = true,
             )
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = studentName,
                 onValueChange = onStudentNameChange,
-                label = { Text("Student name") },
+                label = { Text("Name") },
                 singleLine = true,
             )
             Button(
@@ -760,7 +758,7 @@ private fun RegisterPanel(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
             ) {
-                Text("Save Student")
+                Text("Save Person")
             }
         }
     }
@@ -790,7 +788,7 @@ private fun SummaryPanel(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "$rosterCount in roster • $linkedCount linked cards",
+                        text = "$rosterCount people • $linkedCount linked cards",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -898,31 +896,64 @@ object RosterCsv {
         require(lines.isNotEmpty()) { "The CSV is empty." }
 
         val headers = parseCsvLine(lines.first()).map { it.normalizeHeader() }
-        val studentIdIndex = headers.indexOf("student id")
-        val sectionIndex = headers.indexOf("section")
-        val nameEnIndex = headers.indexOf("name (en)")
-        val nameThIndex = headers.indexOf("name (th)")
-        val nicknameEnIndex = headers.indexOf("nickname (en)")
-        val nicknameThIndex = headers.indexOf("nickname (th)")
+        val studentIdIndex = headers.findHeader(
+            "id",
+            "person id",
+            "student id",
+            "employee id",
+            "staff id",
+            "member id",
+            "user id",
+            "code",
+            "number",
+        )
+        val nameIndex = headers.findHeader(
+            "name",
+            "full name",
+            "person name",
+            "student name",
+            "employee name",
+            "staff name",
+            "name en",
+            "name th",
+        )
+        val alternateNameIndex = headers.findHeader("name th", "name en")
+        val nicknameIndex = headers.findHeader(
+            "nickname",
+            "preferred name",
+            "display name",
+            "nickname en",
+            "nickname th",
+        )
+        val groupIndex = headers.findHeader(
+            "group",
+            "section",
+            "department",
+            "team",
+            "class",
+            "room",
+            "unit",
+            "division",
+        )
 
-        require(studentIdIndex >= 0) { "Missing Student ID column." }
-        require(sectionIndex >= 0) { "Missing Section column." }
-        require(nameEnIndex >= 0 || nameThIndex >= 0) {
-            "Missing Name (EN) or Name (TH) column."
+        require(studentIdIndex >= 0) {
+            "Missing ID column. Use a header such as ID, Student ID, or Employee ID."
+        }
+        require(nameIndex >= 0) {
+            "Missing name column. Use a header such as Name or Full Name."
         }
 
         return lines.drop(1).mapNotNull { line ->
             val values = parseCsvLine(line)
             val studentId = values.valueAt(studentIdIndex)
-            val section = values.valueAt(sectionIndex).uppercase(Locale.US)
-            if (studentId.isBlank() || section.isBlank()) {
+            if (studentId.isBlank()) {
                 null
             } else {
-                val name = values.valueAt(nameEnIndex)
-                    .ifBlank { values.valueAt(nameThIndex) }
+                val name = values.valueAt(nameIndex)
+                    .ifBlank { values.valueAt(alternateNameIndex) }
                     .ifBlank { studentId }
-                val nickname = values.valueAt(nicknameEnIndex)
-                    .ifBlank { values.valueAt(nicknameThIndex) }
+                val nickname = values.valueAt(nicknameIndex)
+                val section = values.valueAt(groupIndex).ifBlank { "All" }
                 RosterStudent(
                     studentId = studentId,
                     name = name,
@@ -932,7 +963,7 @@ object RosterCsv {
             }
         }.distinctBy { it.studentId }
             .sortedWith(compareBy<RosterStudent> { it.section }.thenBy { it.studentId })
-            .also { require(it.isNotEmpty()) { "No student rows were found." } }
+            .also { require(it.isNotEmpty()) { "No people were found in the CSV." } }
     }
 }
 
@@ -1027,7 +1058,7 @@ class LocalStore(private val context: Context) {
     fun appendCheckIn(record: CheckInRecord) {
         appendCsv(
             file = checkInsFile,
-            header = listOf("timestamp", "card_uid", "student_id", "student_name", "result"),
+            header = listOf("timestamp", "card_uid", "person_id", "person_name", "result"),
             row = listOf(
                 record.timestamp,
                 record.cardUid,
@@ -1077,7 +1108,7 @@ class LocalStore(private val context: Context) {
         }
 
         return listOf(
-            File(context.filesDir, "students.csv"),
+            File(context.filesDir, "people.csv"),
             checkInsFile,
             scansFile,
         ).filter { it.exists() }
@@ -1089,9 +1120,9 @@ class LocalStore(private val context: Context) {
     }
 
     private fun writeStudentsCsv(students: List<Student>) {
-        val studentsCsv = File(context.filesDir, "students.csv")
+        val studentsCsv = File(context.filesDir, "people.csv")
         val lines = buildList {
-            add(csvLine(listOf("card_uid", "student_id", "student_name", "section", "created_at")))
+            add(csvLine(listOf("card_uid", "person_id", "person_name", "group", "created_at")))
             students.forEach { student ->
                 add(
                     csvLine(
@@ -1214,7 +1245,16 @@ private fun String.normalizeHeader(): String =
     removePrefix("\uFEFF")
         .trim()
         .lowercase(Locale.US)
-        .replace(Regex("\\s+"), " ")
+        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .trim()
+
+private fun List<String>.findHeader(vararg aliases: String): Int {
+    aliases.forEach { alias ->
+        val index = indexOf(alias.normalizeHeader())
+        if (index >= 0) return index
+    }
+    return -1
+}
 
 private fun List<String>.valueAt(index: Int): String =
     if (index in indices) this[index].trim() else ""

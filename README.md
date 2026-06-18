@@ -1,93 +1,97 @@
-# NFC Check-In Lite
+# NFC Check-In
 
-Open-source Android app for simple student check-in with NFC student ID cards.
+Open-source Android app for general NFC card check-in. It can be used for
+classes, laboratories, workplaces, events, clubs, or other attendance needs.
 
-The first version is intentionally local-first:
+The app is local-first:
 
-- Scan an NFC card with an Android phone.
-- Record visible card metadata: UID, NFC technologies, NDEF text or URI data when available.
-- Register a visible card UID to a student name and student ID.
-- Import a private class roster CSV and choose section A-E before scanning.
-- Check students in by tapping their card again.
-- Export `students.csv`, `checkins.csv`, and `scans.csv` through Android sharing.
+- Scan NFC cards with an Android phone.
+- Record visible card metadata: UID, NFC technologies, and readable NDEF data.
+- Import a private CSV list of people.
+- Filter people by group, section, department, team, class, room, or unit.
+- Link each visible card UID to a person once.
+- Check linked people in automatically on future taps.
+- Export `people.csv`, `checkins.csv`, and `scans.csv`.
 
-The app does not try to bypass protected card storage or decrypt private sectors. If a student card only exposes a stable UID, the app uses that UID as the registration key.
+The app does not bypass protected card storage or decrypt private sectors. If a
+card exposes only a stable UID, that UID is used as the local registration key.
 
-## Requirements
+## CSV Format
 
-- Android phone with NFC, such as Samsung S23 FE.
-- For local builds: Android Studio with Android SDK installed, plus JDK 17.
-- For cloud builds: a GitHub repository with Actions enabled.
+Choose any comma-separated CSV containing an ID column and a name column.
+Column names are matched without regard to capitalization, spaces, hyphens, or
+underscores.
 
-## Build
+Recognized ID headers include:
 
-Open this folder in Android Studio, let Gradle sync, then run the `app` configuration on your phone.
+- `ID`, `Person ID`, `Student ID`, `Employee ID`, `Staff ID`
+- `Member ID`, `User ID`, `Code`, `Number`
 
-If you prefer terminal builds after installing Android Studio and JDK:
+Recognized name headers include:
+
+- `Name`, `Full Name`, `Person Name`
+- `Student Name`, `Employee Name`, `Staff Name`
+- `Name (EN)`, `Name (TH)`
+
+Optional nickname headers include `Nickname`, `Preferred Name`, and
+`Display Name`.
+
+Optional group headers include:
+
+- `Group`, `Section`, `Department`, `Team`
+- `Class`, `Room`, `Unit`, `Division`
+
+If no group column exists, everyone is placed in the `All` group.
+
+Example:
+
+```csv
+ID,Name,Department
+EMP001,Alice Rivera,Design
+EMP002,Jordan Lee,Engineering
+```
+
+## First Use
+
+1. Copy the private CSV to the phone or Google Drive.
+2. Install and open the app.
+3. Tap **Import CSV** and select the file.
+4. Select a group when the file contains groups.
+5. Tap an NFC card.
+6. Search for and select the person once to link the card.
+7. Future taps check that person in automatically.
+
+## Build Without Android Studio
+
+Push the project to GitHub and open **Actions**. The
+**Build Android Debug APK** workflow produces an installable APK artifact.
+
+For a local build with Android SDK and JDK 17:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-## Build Without Android Studio
+## Private Data
 
-You can let GitHub build the APK for you:
+The repository ignores everything inside `data/` except `.gitkeep`, so private
+CSV files are not committed to GitHub.
 
-1. Create a GitHub repository.
-2. Push this project to the `main` branch.
-3. Open the repository on GitHub.
-4. Go to **Actions**.
-5. Open **Build Android Debug APK**.
-6. Download the `nfc-check-in-lite-debug-apk` artifact.
-7. Copy `app-debug.apk` to your Android phone and install it.
+The app keeps imported lists, linked cards, check-ins, and scans in private
+Android app storage. Use **Export CSV** to share copies.
 
-On the phone, Android may ask you to allow installing apps from your browser or file manager.
-
-## First Test
-
-1. Copy the private roster CSV to your phone or Google Drive.
-2. Install and open the app on your NFC phone.
-3. Tap **Import CSV** and select either the full roster or one section CSV.
-4. Choose section A-E.
-5. Tap a student ID card.
-6. Search for and select the student once to link that card UID.
-7. Future taps check that student in automatically.
-
-The import recognizes the columns `Student ID`, `Name (EN)` or `Name (TH)`,
-`Nickname (EN)` or `Nickname (TH)`, and `Section`.
-
-## Split the Roster by Section
-
-The original roster and generated section files stay inside the ignored `data/`
-folder and are not committed to GitHub.
+The included optional splitter can create one CSV per value in a `Section`
+column:
 
 ```bash
-python3 scripts/split_students_by_section.py "data/SM31301-CheckIn - Sheet1.csv"
+python3 scripts/split_students_by_section.py "data/your-file.csv"
 ```
 
-This creates `data/sections/students-section-A.csv` through
-`students-section-E.csv`. The app can also import the original full CSV and
-filter it with the section buttons, so splitting is optional.
+## Card Compatibility
 
-## What "Unregistered Card" Means
+Cards vary. Some expose only a UID, some expose NDEF data, and some use
+protected storage. A secure card may randomize its visible UID, making
+UID-based check-in unreliable.
 
-If the app shows technologies such as `IsoDep`, `MifareClassic`, `NdefFormatable`, or `NfcA`, the phone is detecting the card. Many university cards do not expose the student ID or name as readable NDEF data, so the app uses the visible UID instead.
-
-For this kind of card, register it once by entering the student ID and name. After that, tapping the same card should check the student in automatically.
-
-Do not format university ID cards, even if Android reports `NdefFormatable`.
-
-## Data Files
-
-The app keeps private local files inside Android app storage:
-
-- `students.json`
-- `roster.json`
-- `checkins.csv`
-- `scans.csv`
-
-Use **Export CSV** in the app to share copies of the CSV files.
-
-## Notes About Card Compatibility
-
-Student cards vary. Some expose only a UID. Some expose NDEF data. Some use protected storage that Android can detect but not read without official keys. A few secure cards may randomize the visible UID, which makes UID-based check-in unreliable.
+Do not format official ID or access cards, even if Android reports
+`NdefFormatable`.
