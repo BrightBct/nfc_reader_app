@@ -246,6 +246,44 @@ label {
   color: var(--warn);
 }
 
+.checkin-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  width: min(420px, calc(100vw - 28px));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-left: 7px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(23, 32, 38, 0.2);
+  padding: 16px 18px;
+  transform: translateY(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.checkin-toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.checkin-toast-title {
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.checkin-toast-meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .link-panel {
   display: grid;
   align-content: start;
@@ -321,5 +359,10 @@ tr:last-child td {
   .topbar-actions button,
   .scan-form button {
     width: 100%;
+  }
+
+  .checkin-toast {
+    right: 14px;
+    bottom: 14px;
   }
 }

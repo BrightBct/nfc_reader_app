@@ -10,6 +10,7 @@ const state = loadState();
 let pendingImport = null;
 let pendingUid = null;
 let scanAutoTimer = 0;
+let toastTimer = 0;
 
 const els = {
   storageStatus: document.getElementById("storageStatus"),
@@ -25,6 +26,9 @@ const els = {
   scanForm: document.getElementById("scanForm"),
   scanInput: document.getElementById("scanInput"),
   scanResult: document.getElementById("scanResult"),
+  checkinToast: document.getElementById("checkinToast"),
+  checkinToastTitle: document.getElementById("checkinToastTitle"),
+  checkinToastMeta: document.getElementById("checkinToastMeta"),
   todayCount: document.getElementById("todayCount"),
   linkPanel: document.getElementById("linkPanel"),
   unknownUidText: document.getElementById("unknownUidText"),
@@ -352,6 +356,7 @@ function handleScan(rawValue) {
   if (person) {
     recordCheckin(person, uid, scannedAt);
     showResult(`${person.name || person.id} checked in.`, "ok");
+    showCheckinToast(person, uid, scannedAt);
     clearPendingLink();
   } else {
     pendingUid = uid;
@@ -462,9 +467,10 @@ function linkPendingCard() {
   if (existing) existing.uid = "";
 
   person.uid = pendingUid;
-  recordCheckin(person, pendingUid, new Date().toISOString());
+  const scannedAt = new Date().toISOString();
+  recordCheckin(person, pendingUid, scannedAt);
   state.scans.unshift({
-    scannedAt: new Date().toISOString(),
+    scannedAt,
     rawUid: pendingUid,
     uid: pendingUid,
     result: "linked",
@@ -474,6 +480,7 @@ function linkPendingCard() {
   });
   saveState();
   showResult(`${person.name || person.id} linked and checked in.`, "ok");
+  showCheckinToast(person, pendingUid, scannedAt);
   clearPendingLink();
   render();
   queueFocus();
@@ -620,6 +627,21 @@ function formatTime(value) {
 function showResult(message, tone) {
   els.scanResult.textContent = message;
   els.scanResult.className = `scan-result ${tone || ""}`.trim();
+}
+
+function showCheckinToast(person, uid, scannedAt) {
+  window.clearTimeout(toastTimer);
+  els.checkinToast.hidden = false;
+  els.checkinToastTitle.textContent = person.name || person.id || "Checked in";
+  els.checkinToastMeta.textContent = [person.id, person.group, formatTime(scannedAt), uid]
+    .filter(Boolean)
+    .join(" · ");
+  window.requestAnimationFrame(() => {
+    els.checkinToast.classList.add("show");
+  });
+  toastTimer = window.setTimeout(() => {
+    els.checkinToast.classList.remove("show");
+  }, 2800);
 }
 
 function queueFocus() {
