@@ -84,9 +84,9 @@ function loadState() {
     return {
       eventName: saved.eventName || "NFC Check-In",
       selectedGroup: saved.selectedGroup || NO_GROUP,
-      people: Array.isArray(saved.people) ? saved.people : [],
-      checkins: Array.isArray(saved.checkins) ? saved.checkins : [],
-      scans: Array.isArray(saved.scans) ? saved.scans : [],
+      people: Array.isArray(saved.people) ? saved.people.map(normalizeSavedPerson) : [],
+      checkins: Array.isArray(saved.checkins) ? saved.checkins.map(normalizeSavedCheckin) : [],
+      scans: Array.isArray(saved.scans) ? saved.scans.map(normalizeSavedScan) : [],
     };
   } catch {
     return { eventName: "NFC Check-In", selectedGroup: NO_GROUP, people: [], checkins: [], scans: [] };
@@ -95,6 +95,18 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function normalizeSavedPerson(person) {
+  return { ...person, uid: normalizeUid(person.uid) || person.uid || "" };
+}
+
+function normalizeSavedCheckin(checkin) {
+  return { ...checkin, uid: normalizeUid(checkin.uid) || checkin.uid || "" };
+}
+
+function normalizeSavedScan(scan) {
+  return { ...scan, uid: normalizeUid(scan.uid) || scan.uid || "" };
 }
 
 function handleCsvFile(event) {
@@ -292,6 +304,9 @@ function normalizeUid(value) {
     if (decimalUid) return decimalUid;
   }
 
+  const legacyDecimal = legacyDecimalUidToUid(trimmed);
+  if (legacyDecimal) return legacyDecimal;
+
   const hexOnly = trimmed.replace(/[^0-9A-F]/g, "");
   if (hexOnly.length >= 4 && hexOnly.length % 2 === 0) {
     return hexOnly.match(/.{1,2}/g).join(":");
@@ -317,6 +332,11 @@ function decimalCardNumberToUid(value) {
   } catch {
     return "";
   }
+}
+
+function legacyDecimalUidToUid(value) {
+  if (!/^(\d{2}:){4}\d{2}$/.test(value)) return "";
+  return decimalCardNumberToUid(value.replace(/:/g, ""));
 }
 
 function recordCheckin(person, uid, scannedAt) {
