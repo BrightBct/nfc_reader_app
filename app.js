@@ -286,11 +286,37 @@ function normalizeUid(value) {
   const trimmed = cleanCell(value).toUpperCase();
   if (!trimmed) return "";
 
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (digitsOnly === trimmed && digitsOnly.length > 8) {
+    const decimalUid = decimalCardNumberToUid(digitsOnly);
+    if (decimalUid) return decimalUid;
+  }
+
   const hexOnly = trimmed.replace(/[^0-9A-F]/g, "");
   if (hexOnly.length >= 4 && hexOnly.length % 2 === 0) {
     return hexOnly.match(/.{1,2}/g).join(":");
   }
   return trimmed.replace(/\s+/g, "");
+}
+
+function decimalCardNumberToUid(value) {
+  try {
+    let number = BigInt(value);
+    if (number <= 0n || number > 0xffffffffn) return "";
+
+    const littleEndianBytes = [];
+    for (let index = 0; index < 4; index += 1) {
+      littleEndianBytes.push(Number(number & 0xffn));
+      number >>= 8n;
+    }
+
+    if (number !== 0n) return "";
+    return littleEndianBytes
+      .map(byte => byte.toString(16).toUpperCase().padStart(2, "0"))
+      .join(":");
+  } catch {
+    return "";
+  }
 }
 
 function recordCheckin(person, uid, scannedAt) {
