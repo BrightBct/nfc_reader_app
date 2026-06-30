@@ -26,6 +26,9 @@ const els = {
   scanForm: document.getElementById("scanForm"),
   scanInput: document.getElementById("scanInput"),
   scanResult: document.getElementById("scanResult"),
+  lastCheckinBanner: document.getElementById("lastCheckinBanner"),
+  lastCheckinName: document.getElementById("lastCheckinName"),
+  lastCheckinMeta: document.getElementById("lastCheckinMeta"),
   checkinToast: document.getElementById("checkinToast"),
   checkinToastTitle: document.getElementById("checkinToastTitle"),
   checkinToastMeta: document.getElementById("checkinToastMeta"),
@@ -631,17 +634,24 @@ function showResult(message, tone) {
 
 function showCheckinToast(person, uid, scannedAt) {
   window.clearTimeout(toastTimer);
-  els.checkinToast.hidden = false;
-  els.checkinToastTitle.textContent = person.name || person.id || "Checked in";
-  els.checkinToastMeta.textContent = [person.id, person.group, formatTime(scannedAt), uid]
+  const title = person.name || person.id || "Checked in";
+  const meta = [person.id, person.group, formatTime(scannedAt), uid]
     .filter(Boolean)
     .join(" · ");
+
+  els.lastCheckinBanner.hidden = false;
+  els.lastCheckinName.textContent = title;
+  els.lastCheckinMeta.textContent = meta;
+
+  els.checkinToast.hidden = false;
+  els.checkinToastTitle.textContent = title;
+  els.checkinToastMeta.textContent = meta;
   window.requestAnimationFrame(() => {
     els.checkinToast.classList.add("show");
   });
   toastTimer = window.setTimeout(() => {
     els.checkinToast.classList.remove("show");
-  }, 2800);
+  }, 5000);
 }
 
 function queueFocus() {

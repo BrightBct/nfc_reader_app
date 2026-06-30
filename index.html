@@ -72,6 +72,11 @@
             <input id="scanInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" autofocus placeholder="Waiting for card UID">
             <button type="submit">Check In</button>
           </form>
+          <div id="lastCheckinBanner" class="last-checkin-banner" aria-live="polite" aria-atomic="true" hidden>
+            <div class="last-checkin-label">Last check-in</div>
+            <div id="lastCheckinName" class="last-checkin-name"></div>
+            <div id="lastCheckinMeta" class="last-checkin-meta"></div>
+          </div>
           <div id="scanResult" class="scan-result" role="status"></div>
         </div>
 
