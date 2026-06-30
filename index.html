@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NFC Check-In</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>NFC Check-In</h1>
+          <p id="storageStatus">Local browser data only</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="exportPeopleButton" type="button" title="Export linked people">Export People</button>
+          <button id="exportCheckinsButton" type="button" title="Export check-in log">Export Check-ins</button>
+          <button id="exportScansButton" type="button" title="Export raw scan log">Export Scans</button>
+        </div>
+      </header>
+
+      <section class="setup-band">
+        <div class="setup-grid">
+          <label>
+            Event name
+            <input id="eventNameInput" type="text" autocomplete="off" placeholder="Lab Check-In">
+          </label>
+          <label>
+            Import CSV
+            <input id="csvFileInput" type="file" accept=".csv,text/csv">
+          </label>
+          <label>
+            Group
+            <select id="groupSelect"></select>
+          </label>
+          <label>
+            Search person
+            <input id="personSearchInput" type="search" autocomplete="off" placeholder="Name or ID">
+          </label>
+        </div>
+
+        <div id="columnMapper" class="column-mapper" hidden>
+          <label>
+            ID column
+            <select id="idColumnSelect"></select>
+          </label>
+          <label>
+            Name column
+            <select id="nameColumnSelect"></select>
+          </label>
+          <label>
+            Group column
+            <select id="groupColumnSelect"></select>
+          </label>
+          <button id="applyColumnsButton" type="button">Use Columns</button>
+        </div>
+      </section>
+
+      <section class="scanner-layout">
+        <div class="scan-panel">
+          <div class="scan-header">
+            <div>
+              <h2>Scan</h2>
+              <p>Tap a card with a keyboard-style reader, or type the UID.</p>
+            </div>
+            <div id="todayCount" class="count-pill">0 today</div>
+          </div>
+          <form id="scanForm" class="scan-form">
+            <input id="scanInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" autofocus placeholder="Waiting for card UID">
+            <button type="submit">Check In</button>
+          </form>
+          <div id="scanResult" class="scan-result" role="status"></div>
+        </div>
+
+        <div id="linkPanel" class="link-panel" hidden>
+          <h2>Link New Card</h2>
+          <p id="unknownUidText"></p>
+          <label>
+            Person
+            <select id="personSelect"></select>
+          </label>
+          <div class="link-actions">
+            <button id="linkCardButton" type="button">Link & Check In</button>
+            <button id="cancelLinkButton" type="button" class="secondary">Cancel</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="data-layout">
+        <div class="table-block">
+          <div class="section-title">
+            <h2>People</h2>
+            <span id="peopleCount">0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>ID</th>
+                  <th>Group</th>
+                  <th>Card UID</th>
+                </tr>
+              </thead>
+              <tbody id="peopleTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-block">
+          <div class="section-title">
+            <h2>Recent Check-ins</h2>
+            <button id="clearDataButton" type="button" class="danger">Clear Local Data</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Name</th>
+                  <th>ID</th>
+                  <th>UID</th>
+                </tr>
+              </thead>
+              <tbody id="checkinsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <template id="emptyRowTemplate">
+      <tr>
+        <td colspan="4" class="empty-cell">No data yet</td>
+      </tr>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
