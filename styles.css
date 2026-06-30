@@ -101,6 +101,16 @@ label {
   font-weight: 700;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .app-shell {
   width: min(1180px, calc(100% - 28px));
   margin: 0 auto;

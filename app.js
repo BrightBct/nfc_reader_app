@@ -3,6 +3,8 @@ const NO_GROUP = "All";
 const ID_ALIASES = ["id", "person id", "student id", "employee id", "staff id", "member id", "user id", "code", "number"];
 const NAME_ALIASES = ["name", "full name", "person name", "student name", "employee name", "staff name", "name (en)", "name (th)"];
 const GROUP_ALIASES = ["group", "section", "department", "team", "class", "room", "unit", "division"];
+const UID_ALIASES = ["card uid", "uid", "nfc uid", "card id", "tag id", "normalized uid"];
+const EVENT_ALIASES = ["event name", "event", "check-in", "check in"];
 
 const state = loadState();
 let pendingImport = null;
@@ -32,6 +34,8 @@ const els = {
   peopleTableBody: document.getElementById("peopleTableBody"),
   checkinsTableBody: document.getElementById("checkinsTableBody"),
   peopleCount: document.getElementById("peopleCount"),
+  importPeopleButton: document.getElementById("importPeopleButton"),
+  peopleImportInput: document.getElementById("peopleImportInput"),
   exportPeopleButton: document.getElementById("exportPeopleButton"),
   exportCheckinsButton: document.getElementById("exportCheckinsButton"),
   exportScansButton: document.getElementById("exportScansButton"),
@@ -72,6 +76,8 @@ function bindEvents() {
   els.scanInput.addEventListener("input", scheduleAutoScan);
   els.linkCardButton.addEventListener("click", linkPendingCard);
   els.cancelLinkButton.addEventListener("click", clearPendingLink);
+  els.importPeopleButton.addEventListener("click", () => els.peopleImportInput.click());
+  els.peopleImportInput.addEventListener("change", handlePeopleImportFile);
   els.exportPeopleButton.addEventListener("click", () => exportCsv("people.csv", peopleExportRows()));
   els.exportCheckinsButton.addEventListener("click", () => exportCsv("checkins.csv", checkinExportRows()));
   els.exportScansButton.addEventListener("click", () => exportCsv("scans.csv", scanExportRows()));
@@ -118,14 +124,19 @@ function handleCsvFile(event) {
     const parsed = parseCsv(String(reader.result || ""));
     if (!parsed.headers.length || !parsed.rows.length) {
       showResult("CSV has no readable rows.", "warn");
+      els.csvFileInput.value = "";
       return;
     }
     pendingImport = parsed;
     setupColumnMapper(parsed.headers);
     els.columnMapper.hidden = false;
     showResult(`Loaded ${parsed.rows.length} CSV rows. Check the columns, then use them.`, "ok");
+    els.csvFileInput.value = "";
   };
-  reader.onerror = () => showResult("Could not read the CSV file.", "warn");
+  reader.onerror = () => {
+    showResult("Could not read the CSV file.", "warn");
+    els.csvFileInput.value = "";
+  };
   reader.readAsText(file);
 }
 
@@ -173,10 +184,80 @@ function applyPendingColumns() {
   state.selectedGroup = groupOptions()[0] || NO_GROUP;
   pendingImport = null;
   els.columnMapper.hidden = true;
+  els.csvFileInput.value = "";
   saveState();
   render();
   showResult(`Imported ${people.length} people.`, "ok");
   queueFocus();
+}
+
+function handlePeopleImportFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const parsed = parseCsv(String(reader.result || ""));
+    const result = peopleFromImportedPeopleCsv(parsed);
+    if (!result.people.length) {
+      showResult("People import needs name, ID, and card UID columns.", "warn");
+      els.peopleImportInput.value = "";
+      return;
+    }
+
+    if (state.people.length > 0) {
+      const confirmed = window.confirm("Replace the current people and card mappings with this People CSV? Check-ins and scans will stay.");
+      if (!confirmed) {
+        els.peopleImportInput.value = "";
+        queueFocus();
+        return;
+      }
+    }
+
+    state.people = result.people;
+    if (result.eventName) state.eventName = result.eventName;
+    state.selectedGroup = groupOptions()[0] || NO_GROUP;
+    pendingImport = null;
+    clearPendingLink();
+    saveState();
+    render();
+    showResult(`Imported ${result.people.length} people with ${result.linkedCount} linked cards.`, "ok");
+    els.peopleImportInput.value = "";
+    queueFocus();
+  };
+  reader.onerror = () => {
+    showResult("Could not read the People CSV file.", "warn");
+    els.peopleImportInput.value = "";
+  };
+  reader.readAsText(file);
+}
+
+function peopleFromImportedPeopleCsv(parsed) {
+  const headers = parsed.headers || [];
+  const idColumn = findHeader(headers, ID_ALIASES);
+  const nameColumn = findHeader(headers, NAME_ALIASES);
+  const groupColumn = findHeader(headers, GROUP_ALIASES);
+  const uidColumn = findHeader(headers, UID_ALIASES);
+  const eventColumn = findHeader(headers, EVENT_ALIASES);
+  if (!idColumn || !nameColumn || !uidColumn) return { eventName: "", linkedCount: 0, people: [] };
+
+  const people = parsed.rows
+    .map((row, index) => ({
+      key: stablePersonKey(row[idColumn], row[nameColumn], index),
+      id: cleanCell(row[idColumn]),
+      name: cleanCell(row[nameColumn]),
+      group: cleanCell(groupColumn ? row[groupColumn] : "") || NO_GROUP,
+      uid: normalizeUid(row[uidColumn]),
+      importedAt: cleanCell(row["Imported At"]) || new Date().toISOString(),
+      sourceColumns: row,
+    }))
+    .filter(person => person.id || person.name);
+
+  return {
+    eventName: eventColumn ? cleanCell(parsed.rows.find(row => cleanCell(row[eventColumn]))?.[eventColumn]) : "",
+    linkedCount: people.filter(person => person.uid).length,
+    people,
+  };
 }
 
 function parseCsv(text) {
