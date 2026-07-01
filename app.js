@@ -357,10 +357,9 @@ function handleScan(rawValue) {
   });
 
   if (person) {
-    recordCheckin(person, uid, scannedAt);
-    showResult(`${person.name || person.id} checked in.`, "ok");
-    showCheckinToast(person, uid, scannedAt);
     clearPendingLink();
+    completeCheckin(person, uid, scannedAt, `${person.name || person.id} checked in.`);
+    return;
   } else {
     pendingUid = uid;
     renderLinkPanel();
@@ -459,6 +458,7 @@ function recordCheckin(person, uid, scannedAt) {
 
 function linkPendingCard() {
   if (!pendingUid) return;
+  const linkedUid = pendingUid;
   const key = els.personSelect.value;
   const person = state.people.find(item => item.key === key);
   if (!person) {
@@ -466,25 +466,30 @@ function linkPendingCard() {
     return;
   }
 
-  const existing = state.people.find(item => item.uid === pendingUid && item.key !== person.key);
+  const existing = state.people.find(item => item.uid === linkedUid && item.key !== person.key);
   if (existing) existing.uid = "";
 
-  person.uid = pendingUid;
+  person.uid = linkedUid;
   const scannedAt = new Date().toISOString();
-  recordCheckin(person, pendingUid, scannedAt);
   state.scans.unshift({
     scannedAt,
-    rawUid: pendingUid,
-    uid: pendingUid,
+    rawUid: linkedUid,
+    uid: linkedUid,
     result: "linked",
     personId: person.id,
     personName: person.name,
     group: person.group,
   });
-  saveState();
-  showResult(`${person.name || person.id} linked and checked in.`, "ok");
-  showCheckinToast(person, pendingUid, scannedAt);
   clearPendingLink();
+  completeCheckin(person, linkedUid, scannedAt, `${person.name || person.id} linked and checked in.`);
+}
+
+function completeCheckin(person, uid, scannedAt, message) {
+  recordCheckin(person, uid, scannedAt);
+  saveState();
+  showResult(message, "ok");
+  showCheckinToast(person, uid, scannedAt);
+  els.scanInput.value = "";
   render();
   queueFocus();
 }
@@ -646,7 +651,8 @@ function showCheckinToast(person, uid, scannedAt) {
   els.checkinToast.hidden = false;
   els.checkinToastTitle.textContent = title;
   els.checkinToastMeta.textContent = meta;
-  window.requestAnimationFrame(() => {
+  const animate = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+  animate(() => {
     els.checkinToast.classList.add("show");
   });
   toastTimer = window.setTimeout(() => {
