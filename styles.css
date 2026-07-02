@@ -17,6 +17,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -181,7 +185,8 @@ label {
 }
 
 .scan-panel,
-.link-panel {
+.link-panel,
+.manual-panel {
   padding: 18px;
 }
 
@@ -195,13 +200,15 @@ label {
 
 .scan-header h2,
 .link-panel h2,
+.manual-panel h2,
 .section-title h2 {
   margin: 0;
   font-size: 1.1rem;
 }
 
 .scan-header p,
-.link-panel p {
+.link-panel p,
+.manual-panel p {
   margin: 6px 0 0;
   color: var(--muted);
 }
@@ -316,9 +323,27 @@ label {
   overflow-wrap: anywhere;
 }
 
-.link-panel {
+.side-panels {
   display: grid;
   align-content: start;
+  gap: 14px;
+}
+
+.link-panel,
+.manual-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.manual-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.manual-form {
+  display: grid;
   gap: 12px;
 }
 

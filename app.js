@@ -38,6 +38,10 @@ const els = {
   personSelect: document.getElementById("personSelect"),
   linkCardButton: document.getElementById("linkCardButton"),
   cancelLinkButton: document.getElementById("cancelLinkButton"),
+  manualForm: document.getElementById("manualForm"),
+  manualSearchInput: document.getElementById("manualSearchInput"),
+  manualPersonSelect: document.getElementById("manualPersonSelect"),
+  manualCheckinButton: document.getElementById("manualCheckinButton"),
   peopleTableBody: document.getElementById("peopleTableBody"),
   checkinsTableBody: document.getElementById("checkinsTableBody"),
   peopleCount: document.getElementById("peopleCount"),
@@ -83,6 +87,11 @@ function bindEvents() {
   els.scanInput.addEventListener("input", scheduleAutoScan);
   els.linkCardButton.addEventListener("click", linkPendingCard);
   els.cancelLinkButton.addEventListener("click", clearPendingLink);
+  els.manualSearchInput.addEventListener("input", renderManualPeople);
+  els.manualForm.addEventListener("submit", event => {
+    event.preventDefault();
+    manualCheckin();
+  });
   els.importPeopleButton.addEventListener("click", () => els.peopleImportInput.click());
   els.peopleImportInput.addEventListener("change", handlePeopleImportFile);
   els.exportPeopleButton.addEventListener("click", () => exportCsv("people.csv", peopleExportRows()));
@@ -431,7 +440,7 @@ function recordCheckin(person, uid, scannedAt) {
   const localDate = new Date(scannedAt).toLocaleDateString("en-CA");
   const duplicate = state.checkins.find(checkin => (
     checkin.localDate === localDate &&
-    (checkin.personKey === person.key || checkin.uid === uid)
+    (checkin.personKey === person.key || (uid && checkin.uid === uid))
   ));
 
   if (duplicate) {
@@ -441,6 +450,7 @@ function recordCheckin(person, uid, scannedAt) {
     duplicate.personId = person.id;
     duplicate.group = person.group;
     duplicate.eventName = state.eventName;
+    duplicate.method = uid ? "card" : "manual";
     return;
   }
 
@@ -453,6 +463,7 @@ function recordCheckin(person, uid, scannedAt) {
     personId: person.id,
     group: person.group,
     uid,
+    method: uid ? "card" : "manual",
   });
 }
 
@@ -492,6 +503,29 @@ function completeCheckin(person, uid, scannedAt, message) {
   els.scanInput.value = "";
   render();
   queueFocus();
+}
+
+function manualCheckin() {
+  const person = state.people.find(item => item.key === els.manualPersonSelect.value);
+  if (!person) {
+    showResult("Choose a person for manual check-in.", "warn");
+    els.manualSearchInput.focus();
+    return;
+  }
+
+  const scannedAt = new Date().toISOString();
+  state.scans.unshift({
+    scannedAt,
+    rawUid: "",
+    uid: "",
+    result: "manual",
+    personId: person.id,
+    personName: person.name,
+    group: person.group,
+  });
+  completeCheckin(person, "", scannedAt, `${person.name || person.id} manually checked in.`);
+  els.manualSearchInput.value = "";
+  renderManualPeople();
 }
 
 function clearPendingLink() {
@@ -538,6 +572,7 @@ function renderPeopleViews() {
   renderPeopleTable(people);
   renderCheckinsTable();
   renderLinkPanel();
+  renderManualPeople();
 }
 
 function filteredPeople() {
@@ -584,7 +619,7 @@ function renderCheckinsTable() {
     appendCell(row, formatTime(checkin.scannedAt));
     appendCell(row, checkin.personName);
     appendCell(row, checkin.personId);
-    appendCell(row, checkin.uid);
+    appendCell(row, checkin.uid || "Manual");
     els.checkinsTableBody.append(row);
   });
 }
@@ -604,6 +639,40 @@ function renderLinkPanel() {
   });
 
   els.linkCardButton.disabled = people.length === 0;
+}
+
+function renderManualPeople() {
+  const people = manualPeople();
+  els.manualPersonSelect.innerHTML = "";
+
+  if (!people.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = state.people.length ? "No matching people" : "Import people first";
+    els.manualPersonSelect.append(option);
+    els.manualCheckinButton.disabled = true;
+    return;
+  }
+
+  people.forEach(person => {
+    const option = document.createElement("option");
+    option.value = person.key;
+    option.textContent = `${person.name || "No name"} · ${person.id || "No ID"} · ${person.group || NO_GROUP}`;
+    els.manualPersonSelect.append(option);
+  });
+  els.manualCheckinButton.disabled = false;
+}
+
+function manualPeople() {
+  const query = els.manualSearchInput.value.trim().toLowerCase();
+  return state.people
+    .filter(person => (state.selectedGroup === NO_GROUP ? true : person.group === state.selectedGroup))
+    .filter(person => {
+      if (!query) return true;
+      return [person.name, person.id, person.group].some(value => String(value || "").toLowerCase().includes(query));
+    })
+    .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+    .slice(0, 80);
 }
 
 function renderTodayCount() {
@@ -673,7 +742,7 @@ function peopleExportRows() {
 
 function checkinExportRows() {
   return [
-    ["Event Name", "Scanned At", "Local Date", "Name", "ID", "Group", "Card UID"],
+    ["Event Name", "Scanned At", "Local Date", "Name", "ID", "Group", "Card UID", "Method"],
     ...state.checkins.map(checkin => [
       checkin.eventName,
       checkin.scannedAt,
@@ -682,6 +751,7 @@ function checkinExportRows() {
       checkin.personId,
       checkin.group,
       checkin.uid,
+      checkin.method || (checkin.uid ? "card" : "manual"),
     ]),
   ];
 }

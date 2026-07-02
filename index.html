@@ -80,16 +80,34 @@
           <div id="scanResult" class="scan-result" role="status"></div>
         </div>
 
-        <div id="linkPanel" class="link-panel" hidden>
-          <h2>Link New Card</h2>
-          <p id="unknownUidText"></p>
-          <label>
-            Person
-            <select id="personSelect"></select>
-          </label>
-          <div class="link-actions">
-            <button id="linkCardButton" type="button">Link & Check In</button>
-            <button id="cancelLinkButton" type="button" class="secondary">Cancel</button>
+        <div class="side-panels">
+          <div id="linkPanel" class="link-panel" hidden>
+            <h2>Link New Card</h2>
+            <p id="unknownUidText"></p>
+            <label>
+              Person
+              <select id="personSelect"></select>
+            </label>
+            <div class="link-actions">
+              <button id="linkCardButton" type="button">Link & Check In</button>
+              <button id="cancelLinkButton" type="button" class="secondary">Cancel</button>
+            </div>
+          </div>
+
+          <div id="manualPanel" class="manual-panel">
+            <h2>Manual Check-In</h2>
+            <p>For a person without their card.</p>
+            <form id="manualForm" class="manual-form">
+              <label>
+                ID or name
+                <input id="manualSearchInput" type="search" autocomplete="off" placeholder="Type ID or name">
+              </label>
+              <label>
+                Person
+                <select id="manualPersonSelect"></select>
+              </label>
+              <button id="manualCheckinButton" type="submit">Manual Check-In</button>
+            </form>
           </div>
         </div>
       </section>
@@ -127,7 +145,7 @@
                   <th>Time</th>
                   <th>Name</th>
                   <th>ID</th>
-                  <th>UID</th>
+                  <th>UID / Method</th>
                 </tr>
               </thead>
               <tbody id="checkinsTableBody"></tbody>

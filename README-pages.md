@@ -22,6 +22,8 @@ This branch adds a static browser version of the check-in tool. It is designed f
 
 Data stays in the browser's local storage. The app exports separate CSV files for linked people, successful check-ins, and raw scans.
 
+Use **Manual Check-In** when a person forgot or lost their card. Search by ID or name, select the person, then click **Manual Check-In**. Manual entries are recorded in check-ins with method `manual`.
+
 Use **Import People** to restore a previously exported `people.csv` file on another browser or check-in box. This brings back the roster and card UID mappings, while leaving that browser's check-ins and raw scans alone.
 
 This web app does not talk to PC/SC readers directly. If the reader does not type the UID into a normal text field, this static GitHub Pages version will not be enough by itself.
