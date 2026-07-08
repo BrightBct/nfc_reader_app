@@ -42,9 +42,10 @@ const els = {
   manualSearchInput: document.getElementById("manualSearchInput"),
   manualPersonSelect: document.getElementById("manualPersonSelect"),
   manualCheckinButton: document.getElementById("manualCheckinButton"),
-  peopleTableBody: document.getElementById("peopleTableBody"),
-  checkinsTableBody: document.getElementById("checkinsTableBody"),
-  peopleCount: document.getElementById("peopleCount"),
+  remainingTableBody: document.getElementById("remainingTableBody"),
+  checkedInTableBody: document.getElementById("checkedInTableBody"),
+  remainingCount: document.getElementById("remainingCount"),
+  checkedInCount: document.getElementById("checkedInCount"),
   importPeopleButton: document.getElementById("importPeopleButton"),
   peopleImportInput: document.getElementById("peopleImportInput"),
   exportPeopleButton: document.getElementById("exportPeopleButton"),
@@ -567,10 +568,7 @@ function groupOptions() {
 }
 
 function renderPeopleViews() {
-  const people = filteredPeople();
-  els.peopleCount.textContent = `${people.length}`;
-  renderPeopleTable(people);
-  renderCheckinsTable();
+  renderAttendanceTables();
   renderLinkPanel();
   renderManualPeople();
 }
@@ -586,10 +584,29 @@ function filteredPeople() {
     .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 }
 
-function renderPeopleTable(people) {
-  els.peopleTableBody.innerHTML = "";
+function renderAttendanceTables() {
+  const todayCheckins = todaysCheckinsForSelectedGroup();
+  const checkedPersonKeys = new Set(todayCheckins.map(checkin => checkin.personKey).filter(Boolean));
+  const remainingPeople = filteredPeople().filter(person => !checkedPersonKeys.has(person.key));
+
+  els.remainingCount.textContent = `${remainingPeople.length}`;
+  els.checkedInCount.textContent = `${todayCheckins.length}`;
+  renderRemainingTable(remainingPeople);
+  renderCheckedInTable(todayCheckins);
+}
+
+function todaysCheckinsForSelectedGroup() {
+  const today = new Date().toLocaleDateString("en-CA");
+  return state.checkins
+    .filter(checkin => checkin.localDate === today)
+    .filter(checkin => state.selectedGroup === NO_GROUP ? true : checkin.group === state.selectedGroup)
+    .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+}
+
+function renderRemainingTable(people) {
+  els.remainingTableBody.innerHTML = "";
   if (!people.length) {
-    els.peopleTableBody.append(emptyRow());
+    els.remainingTableBody.append(emptyRow());
     return;
   }
 
@@ -599,28 +616,24 @@ function renderPeopleTable(people) {
     appendCell(row, person.id);
     appendCell(row, person.group);
     appendCell(row, person.uid || "Not linked");
-    els.peopleTableBody.append(row);
+    els.remainingTableBody.append(row);
   });
 }
 
-function renderCheckinsTable() {
-  els.checkinsTableBody.innerHTML = "";
-  const visible = state.checkins
-    .filter(checkin => state.selectedGroup === NO_GROUP ? true : checkin.group === state.selectedGroup)
-    .slice(0, 50);
-
-  if (!visible.length) {
-    els.checkinsTableBody.append(emptyRow());
+function renderCheckedInTable(checkins) {
+  els.checkedInTableBody.innerHTML = "";
+  if (!checkins.length) {
+    els.checkedInTableBody.append(emptyRow());
     return;
   }
 
-  visible.forEach(checkin => {
+  checkins.forEach(checkin => {
     const row = document.createElement("tr");
     appendCell(row, formatTime(checkin.scannedAt));
     appendCell(row, checkin.personName);
     appendCell(row, checkin.personId);
     appendCell(row, checkin.uid || "Manual");
-    els.checkinsTableBody.append(row);
+    els.checkedInTableBody.append(row);
   });
 }
 

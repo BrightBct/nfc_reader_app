@@ -366,6 +366,12 @@ label {
   border-radius: 6px;
 }
 
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
